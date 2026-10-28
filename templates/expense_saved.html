@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f7f2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Expense saved · Student Expense Tracker</title>
+</head>
+<body class="theme-{{ session.get('theme', 'light') }}">
+    <main class="confirmation-wrap">
+        <section class="confirmation-card">
+            <div class="success-mark" aria-hidden="true">✓</div>
+            <p class="eyebrow">NICE WORK</p>
+            <h1>Expense saved</h1>
+            <p class="confirmation-copy">Your spending is up to date. Keep it going, one small step at a time.</p>
+            <div class="saved-detail">
+                <div><span>Expense</span><strong>{{ description }}</strong></div>
+                <div><span>Category</span><strong>{{ category }}</strong></div>
+                <div><span>Amount</span><strong>R{{ "%.2f"|format(amount) }}</strong></div>
+            </div>
+            <a class="dashboard-link" href="{{ url_for('home') }}">Back to my budget <span aria-hidden="true">→</span></a>
+        </section>
+        <p class="confirmation-footer">Student expense tracker</p>
+    </main>
+</body>
+</html>

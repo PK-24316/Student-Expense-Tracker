@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f7f2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Savings &amp; Investments · Student Expense Tracker</title>
+</head>
+<body class="theme-{{ session.get('theme', 'light') }}">
+    <main class="container wealth-container">
+        <header class="settings-header">
+            <div class="account-bar">
+                <span>Hello, <strong>{{ session.get('first_name') or session.get('username', '').split('@')[0] }}{% if session.get('first_name') and session.get('last_name') %} {{ session.get('last_name') }}{% endif %}</strong></span>
+                <a class="settings-link" href="{{ url_for('graphs') }}">Graphs</a>
+                <a class="settings-link" href="{{ url_for('settings') }}">Settings</a>
+                <form action="{{ url_for('logout') }}" method="POST"><button type="submit" class="logout-button">Sign out</button></form>
+            </div>
+            <a class="back-link" href="{{ url_for('home') }}">← Back to tracker</a>
+            <p class="eyebrow">BUILD YOUR FUTURE</p>
+            <h1>Savings &amp; investments</h1>
+            <p class="intro">Keep your goals and investments in view. These balances are separate from your monthly expenses.</p>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="wealth-notices" role="status">
+                    {% for category, message in messages %}<p class="flash-message {{ category }}">{{ message }}</p>{% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="summary-grid wealth-summary" aria-label="Savings and investment totals">
+            <article class="summary-card">
+                <span class="summary-label">Savings balance</span>
+                <strong>R{{ "%.2f"|format(total_savings) }}</strong>
+                <span class="summary-note">Across {{ goals|length }} goal{% if goals|length != 1 %}s{% endif %}</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Investment value</span>
+                <strong>R{{ "%.2f"|format(portfolio['current_value']) }}</strong>
+                <span class="summary-note">R{{ "%.2f"|format(portfolio['invested']) }} invested</span>
+            </article>
+            <article class="summary-card {% if investment_gain >= 0 %}wealth-positive{% else %}wealth-negative{% endif %}">
+                <span class="summary-label">Investment change</span>
+                <strong>R{{ "%+.2f"|format(investment_gain) }}</strong>
+                <span class="summary-note">Current value minus amount invested</span>
+            </article>
+        </section>
+
+        <div class="wealth-grid">
+            <section class="expense-card wealth-section">
+                <div class="wealth-section-heading">
+                    <div><p class="eyebrow">SAVE TOWARD A GOAL</p><h2>Savings goals</h2></div>
+                    <span class="count-pill">{{ goals|length }} goal{% if goals|length != 1 %}s{% endif %}</span>
+                </div>
+                <p class="section-copy">Track balances with a record of each deposit and withdrawal.</p>
+
+                <form action="{{ url_for('add_savings_goal') }}" method="POST" class="wealth-form goal-create-form">
+                    <h3>Create a goal</h3>
+                    <div class="field-group"><label for="goal-name">Goal name</label><input id="goal-name" type="text" name="name" maxlength="80" placeholder="e.g. Emergency fund" required></div>
+                    <div class="wealth-form-row">
+                        <div class="field-group"><label for="goal-target">Target amount (R)</label><input id="goal-target" type="number" name="target_amount" min="0.01" step="0.01" placeholder="10000" required></div>
+                        <div class="field-group"><label for="goal-starting">Already saved (R)</label><input id="goal-starting" type="number" name="opening_balance" min="0" step="0.01" value="0"></div>
+                    </div>
+                    <div class="field-group"><label for="goal-date">Target date <span class="optional-label">Optional</span></label><input id="goal-date" type="date" name="target_date"></div>
+                    <button type="submit" class="full-button">Create savings goal</button>
+                </form>
+
+                <div class="goal-list">
+                    {% for goal in goals %}
+                        <article class="goal-card">
+                            <div class="goal-title-line">
+                                <div><h3>{{ goal['name'] }}</h3>{% if goal['target_date'] %}<span class="goal-date">Target date: {{ goal['target_date'] }}</span>{% endif %}</div>
+                                <form action="{{ url_for('delete_savings_goal', goal_id=goal['id']) }}" method="POST" onsubmit="return confirm('Delete this goal and all its savings activity? This cannot be undone.');">
+                                    <button type="submit" class="remove-category-button">Delete goal</button>
+                                </form>
+                            </div>
+                            <div class="goal-progress-label"><strong>R{{ "%.2f"|format(goal['balance']) }}</strong><span>of R{{ "%.2f"|format(goal['target_amount']) }}</span></div>
+                            <div class="goal-progress-track" role="progressbar" aria-label="{{ goal['name'] }} savings progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ goal['progress'] }}"><span style="width: {{ goal['progress'] }}%"></span></div>
+                            <div class="goal-progress-foot"><span>{{ "%.0f"|format(goal['progress']) }}% saved</span>{% if goal['balance'] >= goal['target_amount'] %}<span>Target reached</span>{% endif %}</div>
+
+                            <form action="{{ url_for('add_savings_transaction', goal_id=goal['id']) }}" method="POST" class="goal-activity-form">
+                                <div class="field-group"><label for="activity-type-{{ goal['id'] }}">Activity</label><select id="activity-type-{{ goal['id'] }}" name="transaction_type"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select></div>
+                                <div class="field-group"><label for="activity-amount-{{ goal['id'] }}">Amount (R)</label><input id="activity-amount-{{ goal['id'] }}" type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required></div>
+                                <div class="field-group"><label for="activity-note-{{ goal['id'] }}">Note <span class="optional-label">Optional</span></label><input id="activity-note-{{ goal['id'] }}" type="text" name="note" maxlength="120" placeholder="e.g. Monthly savings"></div>
+                                <button type="submit" class="secondary-button">Record</button>
+                            </form>
+                        </article>
+                    {% else %}
+                        <div class="wealth-empty">Create a goal to start tracking your savings.</div>
+                    {% endfor %}
+                </div>
+
+                {% if transactions %}
+                    <details class="activity-details">
+                        <summary>Recent savings activity</summary>
+                        <div class="activity-list">
+                            {% for transaction in transactions %}
+                                <div class="activity-row">
+                                    <div><strong>{{ transaction['goal_name'] }}</strong><span>{{ transaction['created_at'] }}{% if transaction['note'] %} · {{ transaction['note'] }}{% endif %}</span></div>
+                                    <strong class="{% if transaction['transaction_type'] == 'deposit' %}deposit-amount{% else %}withdrawal-amount{% endif %}">{{ '+' if transaction['transaction_type'] == 'deposit' else '−' }}R{{ "%.2f"|format(transaction['amount']) }}</strong>
+                                    <form action="{{ url_for('delete_savings_transaction', transaction_id=transaction['id']) }}" method="POST" onsubmit="return confirm('Remove this savings activity?');"><button type="submit" class="activity-delete" aria-label="Remove savings activity">×</button></form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                {% endif %}
+            </section>
+
+            <section class="expense-card wealth-section">
+                <div class="wealth-section-heading">
+                    <div><p class="eyebrow">MARKET + MANUAL TRACKING</p><h2>Investments</h2></div>
+                    <span class="count-pill">{{ investments|length }} holding{% if investments|length != 1 %}s{% endif %}</span>
+                </div>
+                <p class="section-copy">Track JSE and US shares, ETFs, and crypto with on-demand market quotes, or keep updating other investments manually. Quotes are the latest available from the provider and may be delayed.</p>
+
+                <form action="{{ url_for('add_market_investment') }}" method="POST" class="wealth-form investment-create-form market-entry-form">
+                    <h3>Add a market holding</h3>
+                    <div class="wealth-form-row">
+                        <div class="field-group"><label for="market-name">Holding name</label><input id="market-name" type="text" name="name" maxlength="80" placeholder="e.g. Apple" required></div>
+                        <div class="field-group"><label for="market-type">Type</label><select class="market-entry-type" id="market-type" name="investment_type"><option value="Shares">Share</option><option value="ETF">ETF</option><option value="Crypto">Crypto</option></select></div>
+                    </div>
+                    <div class="wealth-form-row">
+                        <div class="field-group"><label for="market-symbol">Ticker / pair</label><input class="market-entry-symbol" id="market-symbol" type="text" name="symbol" maxlength="20" placeholder="e.g. AAPL or NPN" required></div>
+                        <div class="field-group"><label for="market-exchange">Exchange</label><select class="market-entry-exchange" id="market-exchange" name="exchange" required><optgroup label="Stocks &amp; ETFs"><option value="XJSE">JSE</option><option value="NASDAQ">NASDAQ</option><option value="NYSE">NYSE</option><option value="AMEX">NYSE American</option></optgroup><optgroup label="Crypto"><option value="Binance">Binance</option><option value="Coinbase Pro">Coinbase</option></optgroup></select></div>
+                    </div>
+                    <div class="wealth-form-row">
+                        <div class="field-group"><label for="market-quantity">Units held</label><input id="market-quantity" type="number" name="quantity" min="0.000001" step="any" placeholder="e.g. 2" required></div>
+                        <div class="field-group"><label for="market-invested">Amount invested (R)</label><input id="market-invested" type="number" name="amount_invested" min="0.01" step="0.01" placeholder="1000" required></div>
+                    </div>
+                    <p class="market-provider-note">Live quotes require a Twelve Data API key configured as <code>TWELVE_DATA_API_KEY</code> on the server. For crypto, enter a pair such as BTC/USD or ETH/USD and select a crypto exchange. USD and ZAR pairs are supported.</p>
+                    <button type="submit" class="full-button">Add market holding</button>
+                </form>
+
+                <form action="{{ url_for('add_investment') }}" method="POST" class="wealth-form investment-create-form">
+                    <h3>Add a manually tracked investment</h3>
+                    <div class="field-group"><label for="investment-name">Investment name</label><input id="investment-name" type="text" name="name" maxlength="80" placeholder="e.g. Global equity fund" required></div>
+                    <div class="field-group"><label for="investment-type">Type</label><select id="investment-type" name="investment_type" required><option value="">Choose a type</option>{% for investment_type in investment_types %}<option value="{{ investment_type }}">{{ investment_type }}</option>{% endfor %}</select></div>
+                    <div class="wealth-form-row">
+                        <div class="field-group"><label for="amount-invested">Amount invested (R)</label><input id="amount-invested" type="number" name="amount_invested" min="0.01" step="0.01" placeholder="1000" required></div>
+                        <div class="field-group"><label for="current-value">Current value (R)</label><input id="current-value" type="number" name="current_value" min="0" step="0.01" placeholder="1050" required></div>
+                    </div>
+                    <button type="submit" class="full-button">Add investment</button>
+                </form>
+
+                <div class="investment-list">
+                    {% for investment in investments %}
+                        {% set change = investment['current_value'] - investment['amount_invested'] %}
+                        <article class="investment-card">
+                            <div class="investment-title-line">
+                                <div><span class="category-pill">{{ investment['investment_type'] }}{% if investment['pricing_mode'] == 'market' %} · {{ investment['exchange'] }}:{{ investment['symbol'] }}{% endif %}</span><h3>{{ investment['name'] }}</h3></div>
+                                <form action="{{ url_for('delete_investment', investment_id=investment['id']) }}" method="POST" onsubmit="return confirm('Remove this investment from your tracker?');"><button type="submit" class="remove-category-button">Remove</button></form>
+                            </div>
+                            <div class="investment-values">
+                                <div><span>Current value</span><strong>R{{ "%.2f"|format(investment['current_value']) }}</strong></div>
+                                <div><span>Invested</span><strong>R{{ "%.2f"|format(investment['amount_invested']) }}</strong></div>
+                                <div><span>Value change</span><strong class="{% if change >= 0 %}deposit-amount{% else %}withdrawal-amount{% endif %}">R{{ "%+.2f"|format(change) }}</strong></div>
+                            </div>
+                            {% if investment['pricing_mode'] == 'market' %}
+                                <div class="market-quote-line">
+                                    {% if investment['quote_price'] is not none %}<span>Quote: {{ investment['quote_currency'] }} {{ "%.4f"|format(investment['quote_price']) }} × {{ investment['quantity'] }} units</span>{% else %}<span>No quote yet; value temporarily matches invested amount</span>{% endif %}
+                                    {% if investment['quote_updated_at'] %}<span>Updated {{ investment['quote_updated_at'] }}</span>{% endif %}
+                                </div>
+                                <form action="{{ url_for('refresh_investment', investment_id=investment['id']) }}" method="POST" class="update-value-form"><button type="submit" class="secondary-button">Refresh quote</button></form>
+                            {% else %}
+                                <form action="{{ url_for('update_investment_value', investment_id=investment['id']) }}" method="POST" class="update-value-form">
+                                    <div class="field-group"><label for="investment-value-{{ investment['id'] }}">Update current value (R)</label><input id="investment-value-{{ investment['id'] }}" type="number" name="current_value" min="0" step="0.01" value="{{ "%.2f"|format(investment['current_value']) }}" required></div>
+                                    <button type="submit" class="secondary-button">Update</button>
+                                </form>
+                            {% endif %}
+                        </article>
+                    {% else %}
+                        <div class="wealth-empty">Add an investment to track its value and change.</div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+        <footer>These trackers are for your own records and do not change your monthly budget totals.</footer>
+    </main>
+    <script>
+        document.querySelectorAll('.market-entry-form').forEach((form) => {
+            const type = form.querySelector('.market-entry-type');
+            const exchange = form.querySelector('.market-entry-exchange');
+            const symbol = form.querySelector('.market-entry-symbol');
+            const groups = exchange.querySelectorAll('optgroup');
+            const updateMarketOptions = () => {
+                const crypto = type.value === 'Crypto';
+                groups.forEach((group) => { group.hidden = (group.label === 'Crypto') !== crypto; });
+                if (crypto && !['Binance', 'Coinbase Pro'].includes(exchange.value)) exchange.value = 'Binance';
+                if (!crypto && ['Binance', 'Coinbase Pro'].includes(exchange.value)) exchange.value = 'XJSE';
+                symbol.placeholder = crypto ? 'e.g. BTC/USD or ETH/USD' : 'e.g. AAPL or NPN';
+            };
+            type.addEventListener('change', updateMarketOptions);
+            updateMarketOptions();
+        });
+    </script>
+</body>
+</html>

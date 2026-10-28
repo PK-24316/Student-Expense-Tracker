@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f7f2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Student Expense Tracker</title>
+</head>
+<body class="theme-{{ session.get('theme', 'light') }}">
+    <main class="container">
+        <header class="page-header">
+            <div class="account-bar">
+                <span>Hello, <strong>{{ session.get('first_name') or session.get('username', '').split('@')[0] }}{% if session.get('first_name') and session.get('last_name') %} {{ session.get('last_name') }}{% endif %}</strong></span>
+                <a class="settings-link" href="{{ url_for('graphs', month=selected_month) }}">Graphs</a>
+                <a class="settings-link" href="{{ url_for('savings_investments') }}">Savings &amp; Investments</a>
+                <a class="settings-link" href="{{ url_for('settings') }}">Settings</a>
+                <form action="{{ url_for('logout') }}" method="POST"><button type="submit" class="logout-button">Sign out</button></form>
+            </div>
+            <div class="brand-mark" aria-hidden="true">S</div>
+            <p class="eyebrow">YOUR MONEY, MADE CLEAR</p>
+            <h1>Student expense tracker</h1>
+            <p class="intro">A simple place to plan your month and keep everyday spending in check.</p>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="page-notices" role="status">
+                    {% for category, message in messages %}<p class="flash-message {{ category }}">{{ message }}</p>{% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="summary-grid" aria-label="Monthly budget summary">
+            <article class="summary-card">
+                <span class="summary-label">Starting amount</span>
+                <strong>R{{ "%.2f"|format(starting_amount) }}</strong>
+                <span class="summary-note">Your monthly budget</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Spent this month</span>
+                <strong>R{{ "%.2f"|format(total_expenses) }}</strong>
+                <span class="summary-note">Across {{ expenses|length }} expense{% if expenses|length != 1 %}s{% endif %}</span>
+            </article>
+            <article class="summary-card balance-card">
+                <span class="summary-label">Available balance</span>
+                <strong>R{{ "%.2f"|format(balance) }}</strong>
+                <span class="summary-note">Starting amount minus spending</span>
+            </article>
+        </section>
+
+        <div class="content-grid">
+            <div class="main-column">
+                <section class="expense-card month-card">
+                    <div>
+                        <p class="eyebrow">MONTHLY OVERVIEW</p>
+                        <h2>Choose a month</h2>
+                        <p class="section-copy">Review your spending for a specific month.</p>
+                    </div>
+                    <form action="/" method="GET" class="month-form">
+                        <label for="month">Budget month</label>
+                        <div class="inline-controls">
+                            <input type="month" id="month" name="month" value="{{ selected_month }}" required>
+                            <button type="submit">View month</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="expense-card">
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">SPENDING LOG</p>
+                            <h2>Your expenses</h2>
+                        </div>
+                        <span class="count-pill">{{ expenses|length }} total</span>
+                    </div>
+                    {% if expenses %}
+                        <div class="table-wrap">
+                            <table>
+                                <thead><tr><th>Expense</th><th>Category</th><th class="amount-cell">Amount</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+                                <tbody>
+                                {% for expense in expenses %}
+                                    <tr>
+                                        <td class="expense-name">{{ expense["description"] }}</td>
+                                        <td><span class="category-pill">{{ expense["category"] }}</span></td>
+                                        <td class="amount-cell">R{{ "%.2f"|format(expense["amount"]) }}</td>
+                                        <td class="action-cell">
+                                            <form action="{{ url_for('delete_expense', expense_id=expense['id']) }}" method="POST" onsubmit="return confirm('Delete this expense? This cannot be undone.');">
+                                                <input type="hidden" name="month" value="{{ selected_month }}">
+                                                <button type="submit" class="delete-button" aria-label="Delete {{ expense['description'] }}">Delete</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <span class="empty-icon" aria-hidden="true">＋</span>
+                            <h3>No expenses yet</h3>
+                            <p>Add your first expense for this month and it will show up here.</p>
+                        </div>
+                    {% endif %}
+                </section>
+            </div>
+
+            <aside class="side-column">
+                <section class="expense-card form-card">
+                    <div class="form-card-heading">
+                        <span class="form-icon" aria-hidden="true">＋</span>
+                        <div>
+                            <p class="eyebrow">QUICK ENTRY</p>
+                            <h2>Add an expense</h2>
+                        </div>
+                    </div>
+                    <p class="section-copy">A few details now make your monthly spending easier to follow.</p>
+                    <form action="/add-expense" method="POST">
+                        <div class="field-group">
+                            <label for="description">What did you spend on?</label>
+                            <input type="text" id="description" name="description" placeholder="e.g. Weekly groceries" required>
+                        </div>
+
+                        <div class="field-group">
+                            <label for="amount">How much?</label>
+                            <div class="currency-input"><span>R</span><input type="number" id="amount" name="amount" placeholder="0.00" min="0.01" step="0.01" required></div>
+                        </div>
+
+                        <div class="field-group">
+                            <label for="category">Pick a category</label>
+                            <select id="category" name="category" required>
+                                <option value="">Choose a category</option>
+                                {% for category in categories %}
+                                    <option value="{{ category['name'] }}">{{ category['name'] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="full-button">Save expense <span aria-hidden="true">→</span></button>
+                        <p class="form-footnote">Your entry will be added to this month’s spending.</p>
+                    </form>
+                </section>
+
+                <section class="expense-card budget-card">
+                    <p class="eyebrow">SET YOUR LIMIT</p>
+                    <h2>Monthly budget</h2>
+                    <p class="section-copy">Set your starting amount to see how much you have left.</p>
+                    <form action="/set-budget" method="POST">
+                        <label for="starting_amount">Starting amount</label>
+                        <div class="currency-input"><span>R</span><input type="number" id="starting_amount" name="starting_amount" placeholder="e.g. 10000" min="0" step="0.01" required></div>
+                        <button type="submit" class="secondary-button full-button">Save budget</button>
+                    </form>
+                </section>
+
+                <section class="clear-card">
+                    <div><h2>Clear this month</h2><p>Remove all expenses for {{ selected_month }}. Your budget stays unchanged.</p></div>
+                    <form action="/clear-expenses" method="POST" onsubmit="return confirm('Are you sure you want to delete all expenses for this month? This cannot be undone.');">
+                        <input type="hidden" name="month" value="{{ selected_month }}">
+                        <button type="submit" class="danger-button">Clear expenses</button>
+                    </form>
+                </section>
+            </aside>
+        </div>
+
+        <section class="quick-wealth-section" aria-labelledby="quick-wealth-heading">
+            <div class="quick-wealth-heading">
+                <div><p class="eyebrow">QUICK ENTRY</p><h2 id="quick-wealth-heading">Savings &amp; investments</h2></div>
+                <a class="settings-link" href="{{ url_for('savings_investments') }}">View savings page →</a>
+            </div>
+            <p class="section-copy">Add them here and they’ll appear in your Savings &amp; Investments page.</p>
+            <div class="quick-wealth-grid">
+                <section class="expense-card quick-wealth-card">
+                    <p class="eyebrow">SAVINGS GOAL</p>
+                    <h3>Create a goal</h3>
+                    <p class="section-copy">Enter your target and how much you’ve saved so far.</p>
+                    <form action="{{ url_for('add_savings_goal') }}" method="POST">
+                        <div class="field-group"><label for="quick-goal-name">Goal name</label><input id="quick-goal-name" type="text" name="name" maxlength="80" placeholder="e.g. Emergency fund" required></div>
+                        <div class="quick-wealth-fields">
+                            <div class="field-group"><label for="quick-goal-target">Target amount (R)</label><input id="quick-goal-target" type="number" name="target_amount" min="0.01" step="0.01" placeholder="10000" required></div>
+                            <div class="field-group"><label for="quick-goal-saved">Already saved (R)</label><input id="quick-goal-saved" type="number" name="opening_balance" min="0" step="0.01" value="0" required></div>
+                        </div>
+                        <button type="submit" class="full-button">Add savings goal</button>
+                    </form>
+                    <div class="quick-savings-deposit">
+                        <h4>Add savings to a goal</h4>
+                        {% if savings_goals %}
+                            <form action="{{ url_for('add_savings_transaction') }}" method="POST">
+                                <div class="field-group"><label for="quick-savings-goal">Savings goal</label><select id="quick-savings-goal" name="goal_id" required>{% for goal in savings_goals %}<option value="{{ goal['id'] }}">{{ goal['name'] }} · R{{ "%.2f"|format(goal['balance']) }} saved</option>{% endfor %}</select></div>
+                                <div class="quick-wealth-fields">
+                                    <div class="field-group"><label for="quick-savings-amount">Amount to add (R)</label><input id="quick-savings-amount" type="number" name="amount" min="0.01" step="0.01" placeholder="e.g. 250" required></div>
+                                    <div class="field-group"><label for="quick-savings-note">Note <span class="optional-label">Optional</span></label><input id="quick-savings-note" type="text" name="note" maxlength="120" placeholder="e.g. Monthly deposit"></div>
+                                </div>
+                                <input type="hidden" name="transaction_type" value="deposit">
+                                <button type="submit" class="secondary-button">Add savings</button>
+                            </form>
+                        {% else %}
+                            <p class="quick-savings-hint">Create a goal above, then you can add deposits to it here.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="expense-card quick-wealth-card">
+                    <p class="eyebrow">INVESTMENT</p>
+                    <h3>Add an investment</h3>
+                    <p class="section-copy">Record your invested amount and current value.</p>
+                    <form action="{{ url_for('add_investment') }}" method="POST">
+                        <div class="field-group"><label for="quick-investment-name">Investment name</label><input id="quick-investment-name" type="text" name="name" maxlength="80" placeholder="e.g. Global equity fund" required></div>
+                        <div class="field-group"><label for="quick-investment-type">Type</label><select id="quick-investment-type" name="investment_type" required><option value="">Choose a type</option><option>Shares</option><option>ETF</option><option>Unit trust</option><option>Crypto</option><option>Bond</option><option>Other</option></select></div>
+                        <div class="quick-wealth-fields">
+                            <div class="field-group"><label for="quick-invested">Amount invested (R)</label><input id="quick-invested" type="number" name="amount_invested" min="0.01" step="0.01" placeholder="1000" required></div>
+                            <div class="field-group"><label for="quick-current-value">Current value (R)</label><input id="quick-current-value" type="number" name="current_value" min="0" step="0.01" placeholder="1050" required></div>
+                        </div>
+                        <button type="submit" class="full-button">Add investment</button>
+                    </form>
+                    <details class="quick-market-entry">
+                        <summary>Add a live market holding</summary>
+                        <form action="{{ url_for('add_market_investment') }}" method="POST" class="market-entry-form">
+                            <div class="field-group"><label for="quick-market-name">Holding name</label><input id="quick-market-name" type="text" name="name" maxlength="80" placeholder="e.g. Apple" required></div>
+                            <div class="quick-wealth-fields">
+                                <div class="field-group"><label for="quick-market-symbol">Ticker / pair</label><input class="market-entry-symbol" id="quick-market-symbol" type="text" name="symbol" maxlength="20" placeholder="AAPL or NPN" required></div>
+                                <div class="field-group"><label for="quick-market-exchange">Exchange</label><select class="market-entry-exchange" id="quick-market-exchange" name="exchange"><optgroup label="Stocks &amp; ETFs"><option value="XJSE">JSE</option><option value="NASDAQ">NASDAQ</option><option value="NYSE">NYSE</option><option value="AMEX">NYSE American</option></optgroup><optgroup label="Crypto"><option value="Binance">Binance</option><option value="Coinbase Pro">Coinbase</option></optgroup></select></div>
+                            </div>
+                            <div class="quick-wealth-fields">
+                                <div class="field-group"><label for="quick-market-quantity">Units held</label><input id="quick-market-quantity" type="number" name="quantity" min="0.000001" step="any" placeholder="2" required></div>
+                                <div class="field-group"><label for="quick-market-invested">Amount invested (R)</label><input id="quick-market-invested" type="number" name="amount_invested" min="0.01" step="0.01" placeholder="1000" required></div>
+                            </div>
+                            <div class="field-group"><label for="quick-market-type">Type</label><select class="market-entry-type" id="quick-market-type" name="investment_type"><option value="Shares">Share</option><option value="ETF">ETF</option><option value="Crypto">Crypto</option></select></div>
+                            <p class="market-provider-note">For crypto, use a BTC/USD or ETH/USD pair and select a crypto exchange. USD and ZAR pairs are supported.</p>
+                            <button type="submit" class="secondary-button">Add market holding</button>
+                        </form>
+                    </details>
+                </section>
+            </div>
+        </section>
+        <footer>Small steps add up. Keep an eye on where your money goes.</footer>
+    </main>
+    <script>
+        document.querySelectorAll('.market-entry-form').forEach((form) => {
+            const type = form.querySelector('.market-entry-type');
+            const exchange = form.querySelector('.market-entry-exchange');
+            const symbol = form.querySelector('.market-entry-symbol');
+            const groups = exchange.querySelectorAll('optgroup');
+            const updateMarketOptions = () => {
+                const crypto = type.value === 'Crypto';
+                groups.forEach((group) => { group.hidden = (group.label === 'Crypto') !== crypto; });
+                if (crypto && !['Binance', 'Coinbase Pro'].includes(exchange.value)) exchange.value = 'Binance';
+                if (!crypto && ['Binance', 'Coinbase Pro'].includes(exchange.value)) exchange.value = 'XJSE';
+                symbol.placeholder = crypto ? 'BTC/USD or ETH/USD' : 'AAPL or NPN';
+            };
+            type.addEventListener('change', updateMarketOptions);
+            updateMarketOptions();
+        });
+    </script>
+</body>
+</html>

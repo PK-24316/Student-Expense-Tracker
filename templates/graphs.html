@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f7f2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Graphs · Student Expense Tracker</title>
+</head>
+<body class="theme-{{ session.get('theme', 'light') }}">
+    <main class="container settings-container graph-page">
+        <header class="settings-header">
+            <div class="account-bar graph-account-bar">
+                <span>Hello, <strong>{{ session.get('first_name') or session.get('username', '').split('@')[0] }}{% if session.get('first_name') and session.get('last_name') %} {{ session.get('last_name') }}{% endif %}</strong></span>
+                <a class="settings-link" href="{{ url_for('savings_investments') }}">Savings &amp; Investments</a>
+                <a class="settings-link" href="{{ url_for('settings') }}">Settings</a>
+                <form action="{{ url_for('logout') }}" method="POST"><button type="submit" class="logout-button">Sign out</button></form>
+            </div>
+            <a class="back-link" href="{{ url_for('home', month=selected_month) }}">← Back to tracker</a>
+            <p class="eyebrow">SPENDING BREAKDOWN</p>
+            <h1>Graphs</h1>
+            <p class="intro">See how your spending is distributed across categories.</p>
+        </header>
+
+        <section class="expense-card graph-controls">
+            <form action="{{ url_for('graphs') }}" method="GET" class="graph-month-form">
+                <input type="hidden" name="type" value="{{ chart_type }}">
+                <div class="field-group">
+                    <label for="graph-month">Budget month</label>
+                    <input type="month" id="graph-month" name="month" value="{{ selected_month }}" required>
+                </div>
+                <button type="submit">View month</button>
+            </form>
+            <div class="chart-switch" role="group" aria-label="Choose graph style">
+                <a href="{{ url_for('graphs', month=selected_month, type='bar') }}" class="chart-switch-link {% if chart_type == 'bar' %}active{% endif %}" {% if chart_type == 'bar' %}aria-current="page"{% endif %}>Bar graph</a>
+                <a href="{{ url_for('graphs', month=selected_month, type='line') }}" class="chart-switch-link {% if chart_type == 'line' %}active{% endif %}" {% if chart_type == 'line' %}aria-current="page"{% endif %}>Line graph</a>
+                <a href="{{ url_for('graphs', month=selected_month, type='pie') }}" class="chart-switch-link {% if chart_type == 'pie' %}active{% endif %}" {% if chart_type == 'pie' %}aria-current="page"{% endif %}>Pie chart</a>
+            </div>
+        </section>
+
+        <section class="expense-card graph-card">
+            <div class="graph-heading">
+                <div>
+                    <p class="eyebrow">{{ 'BAR GRAPH' if chart_type == 'bar' else ('LINE GRAPH' if chart_type == 'line' else 'PIE CHART') }}</p>
+                    <h2>Amount by category</h2>
+                </div>
+                <div class="graph-total"><span>Total this month</span><strong>R{{ "%.2f"|format(total_expenses) }}</strong></div>
+            </div>
+
+            {% if chart_data %}
+                <div class="canvas-scroll" id="chart-wrapper">
+                    <canvas id="spending-chart" data-chart-type="{{ chart_type }}" data-chart-data="{{ chart_data|tojson|forceescape }}" role="img" aria-label="{{ 'Bar' if chart_type == 'bar' else ('Line' if chart_type == 'line' else 'Pie') }} chart showing expense amounts by category for {{ selected_month }}">
+                        Amount by category for {{ selected_month }}.
+                    </canvas>
+                </div>
+                <div id="chart-legend" class="pie-legend" {% if chart_type != 'pie' %}hidden{% endif %} aria-label="Pie chart legend"></div>
+                <details class="chart-data-details">
+                    <summary>View data as a table</summary>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Category</th><th class="amount-cell">Amount</th></tr></thead>
+                            <tbody>{% for item in chart_data %}<tr><td class="expense-name">{{ item['category'] }}</td><td class="amount-cell">R{{ "%.2f"|format(item['amount']) }}</td></tr>{% endfor %}</tbody>
+                        </table>
+                    </div>
+                </details>
+            {% else %}
+                <div class="chart-empty">There’s no spending recorded for this month yet. Add an expense to see your category breakdown.</div>
+            {% endif %}
+        </section>
+        <footer>Your graph only includes your expenses for the selected month.</footer>
+    </main>
+    {% if chart_data %}
+    <script>
+        (() => {
+            const canvas = document.getElementById('spending-chart');
+            const wrapper = document.getElementById('chart-wrapper');
+            const data = JSON.parse(canvas.dataset.chartData);
+            const type = canvas.dataset.chartType;
+            const legend = document.getElementById('chart-legend');
+            const height = 390;
+            const theme = document.body.classList;
+            const pieColors = theme.contains('theme-midnight')
+                ? ['#79a9f5', '#a0c0ff', '#527fcb', '#cadaff', '#638bc9', '#8eace0', '#3c659f', '#b4c8ef']
+                : theme.contains('theme-forest')
+                    ? ['#68bd83', '#9ad5a9', '#3f8b5b', '#c3e7c9', '#5eaa76', '#88c99b', '#31704a', '#acd9b6']
+                    : theme.contains('theme-dark')
+                        ? ['#a8a8a8', '#777', '#d0d0d0', '#555', '#999', '#3f3f3f', '#bdbdbd', '#686868']
+                        : ['#287451', '#4477aa', '#d28d3c', '#9268a8', '#4a9b98', '#bd6770', '#7b8550', '#6c7792'];
+
+            if (type === 'pie') {
+                const total = data.reduce((sum, item) => sum + Number(item.amount), 0);
+                data.forEach((item, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'pie-legend-item';
+                    const swatch = document.createElement('span');
+                    swatch.className = 'pie-legend-swatch';
+                    swatch.style.backgroundColor = pieColors[index % pieColors.length];
+                    const label = document.createElement('span');
+                    label.className = 'pie-legend-label';
+                    label.textContent = item.category;
+                    const value = document.createElement('strong');
+                    value.textContent = 'R' + Number(item.amount).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' · ' + (Number(item.amount) / total * 100).toFixed(1) + '%';
+                    row.append(swatch, label, value);
+                    legend.append(row);
+                });
+            }
+
+            function drawChart() {
+                const dpr = window.devicePixelRatio || 1;
+                const width = type === 'pie' ? Math.max(wrapper.clientWidth, 360) : Math.max(wrapper.clientWidth, data.length * 112 + 80);
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                canvas.style.width = width + 'px';
+                canvas.style.height = height + 'px';
+
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, width, height);
+                const styles = getComputedStyle(document.body);
+                const ink = styles.getPropertyValue('--ink').trim();
+                const muted = styles.getPropertyValue('--muted').trim();
+                const line = styles.getPropertyValue('--line').trim();
+                const fill = styles.getPropertyValue('--chart-fill').trim();
+                const left = 68, right = 24, top = 26, bottom = 122;
+                const plotWidth = width - left - right;
+                const plotHeight = height - top - bottom;
+                const maximum = Math.max(...data.map(item => Number(item.amount)), 0);
+                const stepMagnitude = Math.pow(10, Math.floor(Math.log10((maximum / 5) || 1)));
+                const yMaximum = Math.max(Math.ceil(maximum / 5 / stepMagnitude) * stepMagnitude * 5, 1);
+                const xStep = plotWidth / data.length;
+
+                if (type !== 'pie') {
+                    ctx.font = '12px Avenir Next, Avenir, sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    for (let tick = 0; tick <= 5; tick++) {
+                        const value = yMaximum * tick / 5;
+                        const y = top + plotHeight - plotHeight * tick / 5;
+                        ctx.strokeStyle = line;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(left, y);
+                        ctx.lineTo(width - right, y);
+                        ctx.stroke();
+                        ctx.fillStyle = muted;
+                        ctx.fillText('R' + Math.round(value).toLocaleString('en-ZA'), left - 10, y);
+                    }
+                }
+
+                const points = data.map((item, index) => ({
+                    x: left + xStep * (index + .5),
+                    y: top + plotHeight - Number(item.amount) / yMaximum * plotHeight,
+                    amount: Number(item.amount)
+                }));
+
+                if (type === 'pie') {
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const radius = Math.min(width * .34, height * .37);
+                    const total = data.reduce((sum, item) => sum + Number(item.amount), 0);
+                    let angle = -Math.PI / 2;
+                    data.forEach((item, index) => {
+                        const nextAngle = angle + Number(item.amount) / total * Math.PI * 2;
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, centerY);
+                        ctx.arc(centerX, centerY, radius, angle, nextAngle);
+                        ctx.closePath();
+                        ctx.fillStyle = pieColors[index % pieColors.length];
+                        ctx.fill();
+                        ctx.strokeStyle = styles.getPropertyValue('--paper').trim();
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        angle = nextAngle;
+                    });
+                } else if (type === 'bar') {
+                    const barWidth = Math.min(64, xStep * .62);
+                    points.forEach(point => {
+                        const barHeight = top + plotHeight - point.y;
+                        ctx.fillStyle = fill;
+                        ctx.fillRect(point.x - barWidth / 2, point.y, barWidth, barHeight);
+                        ctx.fillStyle = ink;
+                        ctx.font = '600 11px Avenir Next, Avenir, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('R' + point.amount.toLocaleString('en-ZA', { maximumFractionDigits: 0 }), point.x, point.y - 11);
+                    });
+                } else {
+                    ctx.strokeStyle = fill;
+                    ctx.lineWidth = 3;
+                    ctx.lineJoin = 'round';
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+                    ctx.stroke();
+                    points.forEach(point => {
+                        ctx.fillStyle = fill;
+                        ctx.beginPath();
+                        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = ink;
+                        ctx.font = '600 11px Avenir Next, Avenir, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('R' + point.amount.toLocaleString('en-ZA', { maximumFractionDigits: 0 }), point.x, point.y - 13);
+                    });
+                }
+
+                if (type !== 'pie') {
+                    ctx.fillStyle = muted;
+                    ctx.font = '12px Avenir Next, Avenir, sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    data.forEach((item, index) => {
+                        const x = left + xStep * (index + .5);
+                        ctx.save();
+                        ctx.translate(x, top + plotHeight + 17);
+                        ctx.rotate(-Math.PI / 4);
+                        ctx.textAlign = 'right';
+                        ctx.fillText(item.category, 0, 0, 180);
+                        ctx.restore();
+                    });
+                }
+            }
+
+            drawChart();
+            if ('ResizeObserver' in window) {
+                new ResizeObserver(drawChart).observe(wrapper);
+            } else {
+                window.addEventListener('resize', drawChart);
+            }
+        })();
+    </script>
+    {% endif %}
+</body>
+</html>

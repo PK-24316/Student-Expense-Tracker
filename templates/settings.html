@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f7f2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Settings · Student Expense Tracker</title>
+</head>
+<body class="theme-{{ session.get('theme', 'light') }}">
+    <main class="container settings-container">
+        <header class="settings-header">
+            <a class="back-link" href="{{ url_for('home') }}">← Back to tracker</a>
+            <p class="eyebrow">MAKE IT YOURS</p>
+            <h1>Settings</h1>
+            <p class="intro">Adjust how your tracker looks and organize your spending categories.</p>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}<p class="flash-message settings-flash {{ category }}">{{ message }}</p>{% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="settings-grid">
+            <section class="expense-card settings-card account-settings">
+                <div class="settings-title">
+                    <span class="settings-icon" aria-hidden="true">◎</span>
+                    <div><p class="eyebrow">YOUR PROFILE</p><h2>Account details</h2></div>
+                </div>
+                <p class="section-copy">Signed in as <strong>{{ session.get('username') }}</strong>. Update your name, email address, or password below.</p>
+
+                <form action="{{ url_for('update_account') }}" method="POST" class="account-edit-form">
+                    <input type="hidden" name="action" value="profile">
+                    <div class="auth-name-grid">
+                        <div class="field-group"><label for="profile-first-name">First name</label><input id="profile-first-name" type="text" name="first_name" maxlength="50" value="{{ session.get('first_name', '') }}" autocomplete="given-name" required></div>
+                        <div class="field-group"><label for="profile-last-name">Surname</label><input id="profile-last-name" type="text" name="last_name" maxlength="50" value="{{ session.get('last_name', '') }}" autocomplete="family-name" required></div>
+                    </div>
+                    <div class="field-group">
+                        <label for="profile-email">Email address (sign-in)</label>
+                        <input id="profile-email" type="email" name="email" maxlength="254" value="{{ session.get('username') }}" autocomplete="email" required>
+                    </div>
+                    <div class="field-group">
+                        <label for="profile-current-password">Confirm with current password</label>
+                        <input id="profile-current-password" type="password" name="current_password" autocomplete="current-password" required>
+                    </div>
+                    <button type="submit" class="settings-submit">Save profile</button>
+                </form>
+
+                <div class="settings-divider"></div>
+                <h3 class="settings-subheading">Change password</h3>
+                <form action="{{ url_for('update_account') }}" method="POST" class="account-edit-form">
+                    <input type="hidden" name="action" value="password">
+                    <div class="field-group">
+                        <label for="password-current">Current password</label>
+                        <input id="password-current" type="password" name="current_password" autocomplete="current-password" required>
+                    </div>
+                    <div class="field-group">
+                        <label for="password-new">New password</label>
+                        <input id="password-new" type="password" name="new_password" minlength="8" autocomplete="new-password" required>
+                    </div>
+                    <div class="field-group">
+                        <label for="password-confirm">Confirm new password</label>
+                        <input id="password-confirm" type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+                    </div>
+                    <button type="submit" class="settings-submit">Update password</button>
+                </form>
+            </section>
+
+            <section class="expense-card settings-card">
+                <div class="settings-title">
+                    <span class="settings-icon" aria-hidden="true">◐</span>
+                    <div><p class="eyebrow">APPEARANCE</p><h2>Color theme</h2></div>
+                </div>
+                <p class="section-copy">Choose a comfortable look. This preference follows your account across devices.</p>
+                <form action="{{ url_for('update_theme') }}" method="POST" class="theme-form">
+                    <label class="theme-choice"><input type="radio" name="theme" value="light" {% if session.get('theme', 'light') == 'light' %}checked{% endif %}><span class="theme-swatch light-swatch" aria-hidden="true"></span><span><strong>Light</strong><small>Bright and airy</small></span></label>
+                    <label class="theme-choice"><input type="radio" name="theme" value="dark" {% if session.get('theme') == 'dark' %}checked{% endif %}><span class="theme-swatch dark-swatch" aria-hidden="true"></span><span><strong>Black</strong><small>Pure black dark mode</small></span></label>
+                    <label class="theme-choice"><input type="radio" name="theme" value="midnight" {% if session.get('theme') == 'midnight' %}checked{% endif %}><span class="theme-swatch midnight-swatch" aria-hidden="true"></span><span><strong>Midnight blue</strong><small>Deep navy dark mode</small></span></label>
+                    <label class="theme-choice"><input type="radio" name="theme" value="forest" {% if session.get('theme') == 'forest' %}checked{% endif %}><span class="theme-swatch forest-swatch" aria-hidden="true"></span><span><strong>Forest green</strong><small>Deep green dark mode</small></span></label>
+                    <button type="submit" class="settings-submit">Save appearance</button>
+                </form>
+            </section>
+
+            <section class="expense-card settings-card categories-settings">
+                <div class="settings-title">
+                    <span class="settings-icon" aria-hidden="true">≡</span>
+                    <div><p class="eyebrow">SPENDING LABELS</p><h2>Your categories</h2></div>
+                </div>
+                <p class="section-copy">Rename categories or remove ones you no longer need. Renaming updates past expenses; removing a category reassigns its past expenses so that label disappears.</p>
+
+                <form action="{{ url_for('add_category') }}" method="POST" class="add-category-form">
+                    <label for="new-category">Add a category</label>
+                    <div class="inline-controls"><input id="new-category" type="text" name="name" maxlength="40" placeholder="e.g. Books" required><button type="submit">Add</button></div>
+                </form>
+
+                <div class="category-list">
+                    {% for category in categories %}
+                        <div class="category-edit-row">
+                            <form action="{{ url_for('rename_category', category_id=category['id']) }}" method="POST" class="rename-category-form">
+                                <label class="visually-hidden" for="category-{{ category['id'] }}">Category name</label>
+                                <input id="category-{{ category['id'] }}" type="text" name="name" value="{{ category['name'] }}" maxlength="40" required>
+                                <button type="submit" class="save-name-button">Save</button>
+                            </form>
+                            <form action="{{ url_for('remove_category', category_id=category['id']) }}" method="POST" onsubmit="return confirm('Remove this category? Past expenses will be moved to Other, another available category, or Uncategorized.');">
+                                <button type="submit" class="remove-category-button" aria-label="Remove {{ category['name'] }}">Remove</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <p class="no-categories">You have no categories yet. Add one above to use it for new expenses.</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+        <section class="expense-card danger-zone settings-danger-zone">
+            <div class="settings-title">
+                <span class="settings-icon" aria-hidden="true">!</span>
+                <div><p class="eyebrow">DANGER ZONE</p><h2>Clear all tracker data</h2></div>
+            </div>
+            <p class="section-copy">This permanently removes all your expenses, budget, savings goals and activity, investments, and categories. Your account and login will remain. Add categories again in Settings before recording new expenses.</p>
+            <form action="{{ url_for('clear_account_data') }}" method="POST" class="clear-data-form" onsubmit="return confirm('Permanently clear all tracker data for this account? This cannot be undone.');">
+                <div class="field-group"><label for="clear-data-confirmation">Type CLEAR to confirm</label><input id="clear-data-confirmation" type="text" name="confirmation" autocomplete="off" required></div>
+                <button type="submit" class="danger-button">Clear all data</button>
+            </form>
+        </section>
+        <footer>Settings apply to your account only.</footer>
+    </main>
+</body>
+</html>

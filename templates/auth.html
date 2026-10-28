@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f7f2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>{{ 'Create account' if mode == 'signup' else 'Sign in' }} · Student Expense Tracker</title>
+</head>
+<body class="theme-{{ session.get('theme', 'light') }}">
+    <main class="confirmation-wrap auth-page">
+        <section class="auth-card">
+            <a class="auth-brand" href="{{ url_for('login') }}" aria-label="Student Expense Tracker sign in">
+                <span class="brand-mark" aria-hidden="true">S</span>
+                <span>Student <strong>Expense Tracker</strong></span>
+            </a>
+            <div class="auth-heading">
+                <p class="eyebrow">{{ 'GET STARTED' if mode == 'signup' else 'YOUR PERSONAL BUDGET' }}</p>
+                <h1>{{ 'Create your account' if mode == 'signup' else 'Welcome back' }}</h1>
+                <p class="confirmation-copy">{{ 'Create an account with your email address and password.' if mode == 'signup' else 'Sign in with your email address and password.' }}</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <p class="flash-message {{ category }}" role="alert">{{ message }}</p>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" class="auth-form">
+                {% if mode == 'signup' %}
+                    <div class="auth-name-grid">
+                        <div class="field-group">
+                            <label for="first-name">First name</label>
+                            <input type="text" id="first-name" name="first_name" value="{{ first_name|default('', true) }}" maxlength="50" autocomplete="given-name" required>
+                        </div>
+                        <div class="field-group">
+                            <label for="last-name">Surname</label>
+                            <input type="text" id="last-name" name="last_name" value="{{ last_name|default('', true) }}" maxlength="50" autocomplete="family-name" required>
+                        </div>
+                    </div>
+                {% endif %}
+                <div class="field-group">
+                    <label for="email">Email address</label>
+                    <input type="{{ 'email' if mode == 'signup' else 'text' }}" id="email" name="email" value="{{ email|default('', true) }}" maxlength="254" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required>
+                </div>
+                <div class="field-group">
+                    <label for="password">Password</label>
+                    <div class="password-field">
+                        <input type="password" id="password" name="password" minlength="{{ 8 if mode == 'signup' else 1 }}" autocomplete="{{ 'new-password' if mode == 'signup' else 'current-password' }}" required>
+                        <button type="button" class="password-toggle" aria-controls="password" aria-pressed="false">Show</button>
+                    </div>
+                    {% if mode == 'signup' %}<span class="field-hint">Use at least 8 characters.</span>{% endif %}
+                </div>
+                {% if mode == 'signup' %}
+                    <div class="field-group">
+                        <label for="confirm_password">Confirm password</label>
+                        <div class="password-field">
+                            <input type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+                            <button type="button" class="password-toggle" aria-controls="confirm_password" aria-pressed="false">Show</button>
+                        </div>
+                    </div>
+                {% endif %}
+                <button class="full-button auth-submit" type="submit">{{ 'Create account' if mode == 'signup' else 'Sign in' }} <span aria-hidden="true">→</span></button>
+            </form>
+            <p class="auth-switch">{% if mode == 'signup' %}Already have an account? <a href="{{ url_for('login') }}">Sign in</a>{% else %}New to the tracker? <a href="{{ url_for('signup') }}">Create an account</a>{% endif %}</p>
+            <p class="auth-privacy"><span aria-hidden="true">▣</span> Your account keeps your financial details private.</p>
+        </section>
+        <p class="confirmation-footer">Student expense tracker</p>
+    </main>
+    <script>
+        document.querySelectorAll('.password-toggle').forEach((toggle) => {
+            toggle.addEventListener('click', () => {
+                const field = document.getElementById(toggle.getAttribute('aria-controls'));
+                const reveal = field.type === 'password';
+                field.type = reveal ? 'text' : 'password';
+                toggle.textContent = reveal ? 'Hide' : 'Show';
+                toggle.setAttribute('aria-pressed', String(reveal));
+            });
+        });
+    </script>
+</body>
+</html>
