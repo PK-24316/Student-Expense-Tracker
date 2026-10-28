@@ -13,7 +13,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-this-secret-before-deployment")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "dev-only-change-this-secret-before-deployment"
+if os.environ.get("RENDER") and not os.environ.get("FLASK_SECRET_KEY"):
+    raise RuntimeError("Set FLASK_SECRET_KEY in the Render environment before starting the app.")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
@@ -48,7 +50,9 @@ def market_data(endpoint, params):
 
 # Connect to our database
 def get_db_connection():
-    connection = sqlite3.connect("expenses.db")
+    database_path = os.environ.get("DATABASE_PATH", "expenses.db")
+    os.makedirs(os.path.dirname(os.path.abspath(database_path)), exist_ok=True)
+    connection = sqlite3.connect(database_path)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
@@ -1127,4 +1131,4 @@ def remove_category(category_id):
 create_table()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)

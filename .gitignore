@@ -1,2 +1,14 @@
-DS_Store
+# Local Python environments and generated files
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local database files; Render stores its database on the mounted disk
+*.db
+*.sqlite
+*.sqlite3
+
+# Keep the separate CodeCampus project out of this repository
 codecampus/
